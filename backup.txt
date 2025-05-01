@@ -1,0 +1,4 @@
+1|Buy groceries|todo|2025-05-01 10:45|0
+2|Submit assignment|study|2025-05-01 11:30|1
+3|Plan trip to Goa|ideas|2025-05-01 13:15|0
+4|Workout|personal|2025-05-01 15:00|1
