@@ -10,6 +10,11 @@
 
 Task tasks[MAX_TASKS];
 int task_count = 0;
+void getTodayDate(char *buffer) {
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    strftime(buffer, 11, "%Y-%m-%d", tm_info);
+}
 
 void getCurrentTime(char *buffer) {
     time_t t = time(NULL);
@@ -21,8 +26,9 @@ void loadTasks() {
     FILE *fp = fopen(FILE_NAME, "r");
     if (!fp) return;
     task_count = 0;
-    while (fscanf(fp, "%d|%[^|]|%[^|]|%[^|]|%d\n", &tasks[task_count].id, tasks[task_count].title,
-                  tasks[task_count].category, tasks[task_count].timestamp, &tasks[task_count].is_done) != EOF) {
+    while (fscanf(fp, "%d|%[^|]|%[^|]|%[^|]|%d|%[^|]\n", &tasks[task_count].id, tasks[task_count].title,
+        tasks[task_count].category, tasks[task_count].timestamp, &tasks[task_count].is_done,
+        tasks[task_count].due_date)) {
         task_count++;
     }
     fclose(fp);
@@ -31,8 +37,8 @@ void loadTasks() {
 void saveTasks() {
     FILE *fp = fopen(FILE_NAME, "w");
     for (int i = 0; i < task_count; i++) {
-        fprintf(fp, "%d|%s|%s|%s|%d\n", tasks[i].id, tasks[i].title, tasks[i].category,
-                tasks[i].timestamp, tasks[i].is_done);
+        fprintf(fp, "%d|%s|%s|%s|%d|%s\n", tasks[i].id, tasks[i].title, tasks[i].category,
+            tasks[i].timestamp, tasks[i].is_done, tasks[i].due_date);
     }
     fclose(fp);
 }
@@ -40,8 +46,8 @@ void saveTasks() {
 void backupTasks() {
     FILE *fp = fopen(BACKUP_FILE, "w");
     for (int i = 0; i < task_count; i++) {
-        fprintf(fp, "%d|%s|%s|%s|%d\n", tasks[i].id, tasks[i].title, tasks[i].category,
-                tasks[i].timestamp, tasks[i].is_done);
+        fprintf(fp, "%d|%s|%s|%s|%d|%s\n", tasks[i].id, tasks[i].title, tasks[i].category,
+                tasks[i].timestamp, tasks[i].is_done, tasks[i].due_date);
     }
     fclose(fp);
 }
@@ -63,6 +69,10 @@ void addTask() {
     getCurrentTime(t.timestamp);
     t.is_done = 0;
     tasks[task_count++] = t;
+    printf("Enter due date (YYYY-MM-DD): ");
+    fgets(t.due_date, sizeof(t.due_date), stdin);
+    t.due_date[strcspn(t.due_date, "\n")] = 0;
+
     saveTasks();
     printf("\033[1;32mTask added successfully!\033[0m\n");
 }
@@ -89,11 +99,22 @@ void viewTasks() {
         printf("\033[1;33mNo tasks found.\033[0m\n");
         return;
     }
+
+    sortTasks();  // 👈 add this line
+
     for (int i = 0; i < task_count; i++) {
-        printf("%d. \033[%dm%s [%s] (%s)\033[0m\n", tasks[i].id, 
-               tasks[i].is_done ? 32 : 31, tasks[i].title, tasks[i].category, tasks[i].timestamp);
+        char today[11];
+        getTodayDate(today);
+        int overdue = strcmp(today, tasks[i].due_date) > 0 && !tasks[i].is_done;
+
+        printf("%d. \033[%dm%s [%s] (%s) Due: %s%s\033[0m\n", tasks[i].id,
+            tasks[i].is_done ? 32 : (overdue ? 31 : 33),
+            tasks[i].title, tasks[i].category, tasks[i].timestamp,
+            tasks[i].due_date, overdue ? " [OVERDUE]" : "");
+     
     }
 }
+
 
 void deleteTask() {
     loadTasks();
@@ -212,4 +233,116 @@ void exportToCSV() {
     }
     fclose(fp);
     printf("\033[1;32mExported to export.csv\033[0m\n");
+}
+int compareTasks(const void *a, const void *b) {
+    Task *t1 = (Task *)a;
+    Task *t2 = (Task *)b;
+
+    // 1. Pending (0) before Done (1)
+    if (t1->is_done != t2->is_done) {
+        return t1->is_done - t2->is_done;
+    }
+
+    // 2. Newer timestamp first
+    return strcmp(t2->timestamp, t1->timestamp);  // descending order
+}
+
+void sortTasks() {
+    qsort(tasks, task_count, sizeof(Task), compareTasks);
+}
+
+void restoreBackup() {
+    FILE *src = fopen("backup.txt", "r");
+    if (!src) {
+        printf("\033[1;31mNo backup file found.\033[0m\n");
+        return;
+    }
+
+    FILE *dest = fopen("data.txt", "w");
+    if (!dest) {
+        printf("\033[1;31mFailed to restore backup.\033[0m\n");
+        fclose(src);
+        return;
+    }
+
+    char ch;
+    while ((ch = fgetc(src)) != EOF) {
+        fputc(ch, dest);
+    }
+
+    fclose(src);
+    fclose(dest);
+    printf("\033[1;32mBackup restored successfully!\033[0m\n");
+}
+
+void filterTasksCLI(const char *filter) {
+    loadTasks();
+    char today[11];
+    getTodayDate(today);
+    int found = 0;
+
+    for (int i = 0; i < task_count; i++) {
+        if ((strcmp(filter, "today") == 0 && strncmp(tasks[i].due_date, today, 10) == 0) ||
+            (strcmp(filter, tasks[i].category) == 0)) {
+            printf("%d. \033[%dm%s [%s] (%s) Due: %s\033[0m\n", tasks[i].id,
+                   tasks[i].is_done ? 32 : 31, tasks[i].title, tasks[i].category,
+                   tasks[i].timestamp, tasks[i].due_date);
+            found = 1;
+        }
+    }
+
+    if (!found) printf("\033[1;33mNo matching tasks found.\033[0m\n");
+}
+void showStats() {
+    loadTasks();
+    int done = 0, pending = 0;
+    for (int i = 0; i < task_count; i++) {
+        if (tasks[i].is_done) done++;
+        else pending++;
+    }
+    printf("\033[1;36mTotal: %d | Done: %d | Pending: %d\033[0m\n", task_count, done, pending);
+}
+
+void autoDeleteOldTasks() {
+    loadTasks();
+    time_t now = time(NULL);
+    struct tm task_tm;
+    int kept = 0;
+    Task updated[MAX_TASKS];
+
+    for (int i = 0; i < task_count; i++) {
+        memset(&task_tm, 0, sizeof(task_tm));
+        strptime(tasks[i].timestamp, "%Y-%m-%d %H:%M", &task_tm);
+        time_t task_time = mktime(&task_tm);
+        double diff = difftime(now, task_time) / (60 * 60 * 24); // in days
+
+        if (diff <= 7) {
+            updated[kept++] = tasks[i];
+        }
+    }
+
+    task_count = kept;
+    memcpy(tasks, updated, sizeof(updated));
+    saveTasks();
+    printf("\033[1;32mOld tasks deleted.\033[0m\n");
+}
+
+void notesMode() {
+    char line[256];
+    FILE *fp = fopen("notes.txt", "a+");
+    if (!fp) {
+        printf("Error opening notes.\n");
+        return;
+    }
+
+    printf("=== Notes Mode ===\nType your note (type 'exit' to quit):\n");
+    while (1) {
+        printf("> ");
+        fgets(line, sizeof(line), stdin);
+        if (strncmp(line, "exit", 4) == 0) break;
+        fputs(line, fp);
+    }
+
+    fclose(fp);
+    printf("Notes saved to notes.txt\n");
 }
