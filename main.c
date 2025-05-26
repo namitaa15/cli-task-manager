@@ -24,7 +24,8 @@ void showMenu() {
 void askPassword() {
     char input[20];
     printf("Enter PIN: ");
-    scanf("%s", input);
+    fgets(input, sizeof(input), stdin);
+    input[strcspn(input, "\n")] = 0;
     if (strcmp(input, "1234") != 0) {
         printf("\033[1;31mWrong PIN!\033[0m\n");
         exit(1);
@@ -32,7 +33,7 @@ void askPassword() {
 }
 
 int main(int argc, char *argv[]) {
-    // CLI Arguments
+    // 🧩 CLI mode
     if (argc > 1) {
         if (strcmp(argv[1], "-a") == 0 && argc >= 3) {
             askPassword();
@@ -47,7 +48,7 @@ int main(int argc, char *argv[]) {
             return 0;
         } else if (strcmp(argv[1], "-filter") == 0 && argc >= 3) {
             askPassword();
-            filterTasksCLI(argv[2]);  // "todo", "today"
+            filterTasksCLI(argv[2]);
             return 0;
         } else if (strcmp(argv[1], "-clock") == 0) {
             system("date");
@@ -67,24 +68,26 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Interactive Mode
+    // 🧑‍💻 Interactive mode
     askPassword();
     int choice;
+    char input[10];
+
     while (1) {
         showMenu();
-        scanf("%d", &choice);
-        getchar(); // Consume newline
+        fgets(input, sizeof(input), stdin);
+        sscanf(input, "%d", &choice);
 
         switch (choice) {
-            case 1: addTask(); break;
-            case 2: viewTasks(); break;
-            case 3: deleteTask(); break;
-            case 4: editTask(); break;
-            case 5: searchTask(); break;
-            case 6: markDone(); break;
-            case 7: clearTasks(); break;
-            case 8: exportToCSV(); break;
-            case 9: restoreBackup(); break;
+            case 1:  addTask(); break;
+            case 2:  viewTasks(); break;
+            case 3:  deleteTask(); break;
+            case 4:  editTask(); break;
+            case 5:  searchTask(); break;
+            case 6:  markDone(); break;
+            case 7:  clearTasks(); break;
+            case 8:  exportToCSV(); break;
+            case 9:  restoreBackup(); break;
             case 10: showStats(); break;
             case 11: autoDeleteOldTasks(); break;
             case 12: notesMode(); break;

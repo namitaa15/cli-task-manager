@@ -26,13 +26,18 @@ void loadTasks() {
     FILE *fp = fopen(FILE_NAME, "r");
     if (!fp) return;
     task_count = 0;
-    while (fscanf(fp, "%d|%[^|]|%[^|]|%[^|]|%d|%[^|]\n", &tasks[task_count].id, tasks[task_count].title,
-        tasks[task_count].category, tasks[task_count].timestamp, &tasks[task_count].is_done,
-        tasks[task_count].due_date)) {
+    while (fscanf(fp, "%d|%[^|]|%[^|]|%[^|]|%d|%[^\n]\n",
+                  &tasks[task_count].id,
+                  tasks[task_count].title,
+                  tasks[task_count].category,
+                  tasks[task_count].timestamp,
+                  &tasks[task_count].is_done,
+                  tasks[task_count].due_date) == 6) {
         task_count++;
     }
     fclose(fp);
 }
+
 
 void saveTasks() {
     FILE *fp = fopen(FILE_NAME, "w");
@@ -58,24 +63,31 @@ void addTask() {
         printf("\033[1;31mTask limit reached!\033[0m\n");
         return;
     }
+
     Task t;
     t.id = task_count + 1;
+
     printf("Enter task title: ");
     fgets(t.title, sizeof(t.title), stdin);
     t.title[strcspn(t.title, "\n")] = 0;
+
     printf("Enter category (e.g., todo/study/ideas): ");
     fgets(t.category, sizeof(t.category), stdin);
     t.category[strcspn(t.category, "\n")] = 0;
-    getCurrentTime(t.timestamp);
-    t.is_done = 0;
-    tasks[task_count++] = t;
+
     printf("Enter due date (YYYY-MM-DD): ");
     fgets(t.due_date, sizeof(t.due_date), stdin);
     t.due_date[strcspn(t.due_date, "\n")] = 0;
 
+    getCurrentTime(t.timestamp);
+    t.is_done = 0;
+
+    tasks[task_count++] = t;
     saveTasks();
     printf("\033[1;32mTask added successfully!\033[0m\n");
 }
+
+
 
 void addTaskCLI(const char *title) {
     loadTasks();
@@ -95,25 +107,31 @@ void addTaskCLI(const char *title) {
 
 void viewTasks() {
     loadTasks();
+    printf("DEBUG: task_count = %d\n", task_count);  // 👈 Add this
+
     if (task_count == 0) {
         printf("\033[1;33mNo tasks found.\033[0m\n");
         return;
     }
 
-    sortTasks();  // 👈 add this line
+    sortTasks();
 
     for (int i = 0; i < task_count; i++) {
         char today[11];
         getTodayDate(today);
         int overdue = strcmp(today, tasks[i].due_date) > 0 && !tasks[i].is_done;
 
-        printf("%d. \033[%dm%s [%s] (%s) Due: %s%s\033[0m\n", tasks[i].id,
-            tasks[i].is_done ? 32 : (overdue ? 31 : 33),
-            tasks[i].title, tasks[i].category, tasks[i].timestamp,
-            tasks[i].due_date, overdue ? " [OVERDUE]" : "");
-     
+        printf("%d. \033[%dm%s [%s] (%s) Due: %s%s\033[0m\n",
+               tasks[i].id,
+               tasks[i].is_done ? 32 : (overdue ? 31 : 33),
+               tasks[i].title,
+               tasks[i].category,
+               tasks[i].timestamp,
+               tasks[i].due_date,
+               overdue ? " [OVERDUE]" : "");
     }
 }
+
 
 
 void deleteTask() {
@@ -210,18 +228,27 @@ void markDone() {
 
 void clearTasks() {
     char confirm;
+
+    // Flush leftover newline
+    int ch;
+    while ((ch = getchar()) != '\n' && ch != EOF);
+
+    printf("[DEBUG] Clear All Tasks function called.\n");
     printf("Are you sure you want to delete all tasks? (y/n): ");
     scanf("%c", &confirm);
+
     if (confirm == 'y' || confirm == 'Y') {
         backupTasks();
         FILE *fp = fopen(FILE_NAME, "w");
-        fclose(fp);
+        if (fp) fclose(fp);
         task_count = 0;
         printf("\033[1;32mAll tasks cleared.\033[0m\n");
     } else {
         printf("\033[1;33mCancelled.\033[0m\n");
     }
 }
+
+
 
 void exportToCSV() {
     loadTasks();
